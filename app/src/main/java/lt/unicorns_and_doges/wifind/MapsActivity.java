@@ -5,28 +5,39 @@ import android.annotation.TargetApi;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.support.v4.app.FragmentActivity;
 import android.widget.Toast;
 
+import com.amazonaws.mobileconnectors.apigateway.ApiClientFactory;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
+
+import lt.unicorns_and_doges.wifind.backend.WiFindClient;
+import lt.unicorns_and_doges.wifind.model.Location;
+import lt.unicorns_and_doges.wifind.model.WifiSpot;
 
 public class MapsActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener {
@@ -36,6 +47,9 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
     WifiReceiver receiverWifi;
     List<ScanResult> wifiList;
     StringBuilder sb = new StringBuilder();
+
+    private volatile Handler showGUIMessageHandler;
+
 
 
     private static final int MY_PERMISSIONS_REQUEST_LOCATION_PERMISSIONS = 10;
@@ -51,15 +65,22 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        createHandlers();
         setContentView(R.layout.activity_maps);
         setUpMapIfNeeded();
         setupGoogleApiClient();
-        scanWifiSpots();
+//        scanWifiSpots();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        new WifiSpotGetTask().execute();
     }
 
     @Override
     protected void onResume() {
-        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+//        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         super.onResume();
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
@@ -67,7 +88,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
     @Override
     protected void onPause() {
-        unregisterReceiver(receiverWifi);
+//        unregisterReceiver(receiverWifi);
         super.onPause();
         if (mGoogleApiClient.isConnected()) {
             mGoogleApiClient.disconnect();
@@ -136,7 +157,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
     }
 
-    private void zoomToLocation(Location location) {
+    private void zoomToLocation(android.location.Location location) {
         currentLocation.setLongitude(location.getLatitude());
         currentLocation.setLatitude(location.getLongitude());
 
@@ -148,33 +169,128 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
                 .zoom(17)                   // Sets the zoom
                 .build();                   // Creates a CameraPosition from the builder
         mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
-        scanWifiSpots();
+        new WifiSpotPutTask(new Location(location.getLatitude(), location.getLongitude()),
+                "Some example2").execute();
+//        scanWifiSpots();
     }
 
-    private void scanWifiSpots() {
+//    private void scanWifiSpots() {
+//
+//        // Initiate wifi service manager
+//        mainWifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+//
+//        // Check for wifi is disabled
+//        if (!mainWifi.isWifiEnabled()) {
+//            // If wifi disabled then enable it
+//            Toast.makeText(getApplicationContext(), "Wifi is disabled .. making it enabled",
+//                    Toast.LENGTH_LONG).show();
+//
+//            mainWifi.setWifiEnabled(true);
+//        }
+//        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+//        mainWifi.startScan();
+//        System.out.println("--------------------------------");
+//        System.out.println("Starting Scan...");
+//        System.out.println("--------------------------------");
+//    }
 
-        // Initiate wifi service manager
-        mainWifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+    @TargetApi(Build.VERSION_CODES.M)
+    private boolean hasPermissions() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+    }
 
-        // Check for wifi is disabled
-        if (!mainWifi.isWifiEnabled()) {
-            // If wifi disabled then enable it
-            Toast.makeText(getApplicationContext(), "Wifi is disabled .. making it enabled",
-                    Toast.LENGTH_LONG).show();
+    /**
+     * Work with backend
+     */
 
-            mainWifi.setWifiEnabled(true);
+    private class WifiSpotGetTask extends AsyncTask<Integer, Integer, WifiSpot[]> {
+        @Override
+        protected WifiSpot[] doInBackground(Integer... integers) {
+            ApiClientFactory apiClientFactory = new ApiClientFactory();
+            WifiSpot[] spots = new WifiSpot[0];
+            try
+            {
+                spots = apiClientFactory.build(WiFindClient.class).getAll();
+            }
+            catch (Exception ex)
+            {
+                Message message = showGUIMessageHandler.obtainMessage
+                        (0, "Failed to retrieve spots: service unreachable");
+                message.sendToTarget();
+            }
+            return spots;
         }
-        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
-        mainWifi.startScan();
-        System.out.println("--------------------------------");
-        System.out.println("Starting Scan...");
-        System.out.println("--------------------------------");
+
+        @Override
+        protected void onPostExecute(WifiSpot[] spots) {
+            super.onPostExecute(spots);
+            for (WifiSpot spot : spots) {
+                float color = BitmapDescriptorFactory.HUE_GREEN;
+                double longitude = spot.getLocation().getLongitude();
+                double latitude = spot.getLocation().getLatitude();
+                String SSID = spot.getSsid();
+                long lastUpdated = spot.getLastUpdated();
+
+
+                Calendar time = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT"));
+                time.setTimeInMillis(lastUpdated);
+                String timeString = time.get(Calendar.YEAR)
+                        + "-" + (time.get(Calendar.MONTH) + 1)
+                        + "-" + time.get(Calendar.DAY_OF_MONTH);
+
+                mMap.addMarker(new MarkerOptions()
+                        .position(new LatLng(latitude, longitude))
+                        .title("SSID: " + SSID + ", Last updated: " + timeString)
+                        .icon(BitmapDescriptorFactory.defaultMarker(color)));
+            }
+        }
     }
+
+    private class WifiSpotPutTask extends AsyncTask<Integer, Integer, Boolean> {
+        Location location;
+        String ssid;
+
+        public WifiSpotPutTask(Location location, String ssid) {
+            this.location = location;
+            this.ssid = ssid;
+        }
+
+        @Override
+        protected Boolean doInBackground(Integer... integers) {
+            WifiSpot wifiSpot = new WifiSpot(ssid, System.currentTimeMillis(), location);
+            Message message;
+            try
+            {
+                return new ApiClientFactory().build(WiFindClient.class).save(wifiSpot);
+            }
+            catch (Exception ex)
+            {
+                ex.getMessage();
+                message = showGUIMessageHandler.obtainMessage
+                        (0, "Failed to submit spot info: service unreachable");
+                message.sendToTarget();
+            }
+            return false;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            super.onPostExecute(success);
+            mMap.clear();
+            new WifiSpotGetTask().execute();
+        }
+    }
+
+
+    /**
+     * Asynchronous listeners
+     */
 
     private final LocationListener mLocationListener = new LocationListener() {
 
         @Override
-        public void onLocationChanged(Location location) {
+        public void onLocationChanged(android.location.Location location) {
             zoomToLocation(location);
         }
 
@@ -193,12 +309,6 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
         }
     };
-
-    @TargetApi(Build.VERSION_CODES.M)
-    private boolean hasPermissions() {
-        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED;
-    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
@@ -222,7 +332,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
     @Override
     public void onConnected(Bundle bundle) {
-        Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
+        android.location.Location location = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if (location == null) {
             Toast.makeText(
                     getApplicationContext(),
@@ -261,6 +371,17 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
             System.out.println("--------------------------------");
         }
 
+    }
+
+    public void createHandlers (){
+        showGUIMessageHandler = new Handler(Looper.getMainLooper()) {
+            @Override
+            public void handleMessage(Message message) {
+                if(message.what == 0)
+                    Toast.makeText(getApplicationContext(), message.obj.toString(), Toast.LENGTH_LONG)
+                            .show();
+            }
+        };
     }
 
 

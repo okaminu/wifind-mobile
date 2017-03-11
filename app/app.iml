@@ -121,8 +121,11 @@
     <orderEntry type="library" exported="" name="play-services-base-8.1.0" level="project" />
     <orderEntry type="library" exported="" name="play-services-location-8.1.0" level="project" />
     <orderEntry type="library" exported="" name="play-services-identity-8.1.0" level="project" />
+    <orderEntry type="library" exported="" name="BackendSdk-1.0.0" level="project" />
     <orderEntry type="library" exported="" name="play-services-vision-8.1.0" level="project" />
+    <orderEntry type="library" exported="" name="aws-android-sdk-core-2.2.3" level="project" />
     <orderEntry type="library" exported="" name="play-services-drive-8.1.0" level="project" />
+    <orderEntry type="library" exported="" name="aws-android-sdk-apigateway-core-2.2.3" level="project" />
     <orderEntry type="library" exported="" name="play-services-analytics-8.1.0" level="project" />
     <orderEntry type="library" exported="" name="play-services-8.1.0" level="project" />
     <orderEntry type="library" exported="" name="support-v4-23.0.1" level="project" />

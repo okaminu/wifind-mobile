@@ -1,25 +1,23 @@
 package lt.unicorns_and_doges.wifind.model;
 
-import java.util.Date;
-
 public class WifiSpot {
 
     private String id;
-    private String SSID;
-    private Date lastUpdated;
+    private String ssid;
+    private long lastUpdated;
     private Location location;
 
-    public WifiSpot(String SSID, Date lastUpdated, Location location) {
-        this.SSID = SSID;
+    public WifiSpot(String ssid, long lastUpdated, Location location) {
+        this.ssid = ssid;
         this.lastUpdated = lastUpdated;
         this.location = location;
     }
 
-    public String getSSID() {
-        return SSID;
+    public String getSsid() {
+        return ssid;
     }
 
-    public Date getLastUpdated() {
+    public long getLastUpdated() {
         return lastUpdated;
     }
 
