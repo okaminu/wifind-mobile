@@ -280,9 +280,6 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
         @Override
         protected void onPostExecute(Boolean success) {
             super.onPostExecute(success);
-            //todo clear doesn't work!
-            mMap.clear();
-            new WifiSpotGetTask().execute();
         }
     }
 
