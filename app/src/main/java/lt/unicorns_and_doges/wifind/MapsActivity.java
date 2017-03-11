@@ -2,11 +2,16 @@ package lt.unicorns_and_doges.wifind;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
@@ -21,10 +26,18 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 
-public class MapsActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener{
+import java.util.List;
 
-    private static final String TAG = MapsActivity.class.getSimpleName();
+public class MapsActivity extends FragmentActivity implements GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener {
+
+    //Wifi scanner specific
+    WifiManager mainWifi;
+    WifiReceiver receiverWifi;
+    List<ScanResult> wifiList;
+    StringBuilder sb = new StringBuilder();
+
+
     private static final int MY_PERMISSIONS_REQUEST_LOCATION_PERMISSIONS = 10;
     private static final long LOCATION_REFRESH_TIME = 1000;
     private static final float LOCATION_REFRESH_DISTANCE = 1;
@@ -41,10 +54,12 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
         setContentView(R.layout.activity_maps);
         setUpMapIfNeeded();
         setupGoogleApiClient();
+        scanWifiSpots();
     }
 
     @Override
     protected void onResume() {
+        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         super.onResume();
         setUpMapIfNeeded();
         mGoogleApiClient.connect();
@@ -52,6 +67,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
     @Override
     protected void onPause() {
+        unregisterReceiver(receiverWifi);
         super.onPause();
         if (mGoogleApiClient.isConnected()) {
             mGoogleApiClient.disconnect();
@@ -86,7 +102,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
         }
     }
 
-    private void setupGoogleApiClient(){
+    private void setupGoogleApiClient() {
         mGoogleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
@@ -104,8 +120,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
             requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,
                             Manifest.permission.ACCESS_FINE_LOCATION},
                     MY_PERMISSIONS_REQUEST_LOCATION_PERMISSIONS);
-        }
-        else{
+        } else {
             continueMapSetup();
         }
     }
@@ -121,7 +136,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
     }
 
-    private void zoomToLocation(Location location){
+    private void zoomToLocation(Location location) {
         currentLocation.setLongitude(location.getLatitude());
         currentLocation.setLatitude(location.getLongitude());
 
@@ -130,9 +145,30 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
 
         CameraPosition cameraPosition = new CameraPosition.Builder()
                 .target(new LatLng(location.getLatitude(), location.getLongitude()))      // Sets the center of the map to location user
-                .zoom(15)                   // Sets the zoom
+                .zoom(17)                   // Sets the zoom
                 .build();                   // Creates a CameraPosition from the builder
         mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+        scanWifiSpots();
+    }
+
+    private void scanWifiSpots() {
+
+        // Initiate wifi service manager
+        mainWifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+
+        // Check for wifi is disabled
+        if (!mainWifi.isWifiEnabled()) {
+            // If wifi disabled then enable it
+            Toast.makeText(getApplicationContext(), "Wifi is disabled .. making it enabled",
+                    Toast.LENGTH_LONG).show();
+
+            mainWifi.setWifiEnabled(true);
+        }
+        registerReceiver(receiverWifi, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+        mainWifi.startScan();
+        System.out.println("--------------------------------");
+        System.out.println("Starting Scan...");
+        System.out.println("--------------------------------");
     }
 
     private final LocationListener mLocationListener = new LocationListener() {
@@ -192,8 +228,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
                     getApplicationContext(),
                     "Please enable Location services from settings to get current location",
                     Toast.LENGTH_LONG).show();
-        }
-        else {
+        } else {
             zoomToLocation(location);
         }
     }
@@ -207,4 +242,26 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
     public void onConnectionFailed(ConnectionResult connectionResult) {
 
     }
+
+
+    class WifiReceiver extends BroadcastReceiver {
+
+        public void onReceive(Context c, Intent intent) {
+
+            sb = new StringBuilder();
+            wifiList = mainWifi.getScanResults();
+            sb.append("\nNumber Of Wifi connections :" + wifiList.size() + "\n\n");
+            for (int i = 0; i < wifiList.size(); i++) {
+                sb.append(new Integer(i + 1).toString() + ". ");
+                sb.append((wifiList.get(i)).toString());
+                sb.append("\n\n");
+            }
+            System.out.println("--------------------------------");
+            System.out.println(sb);
+            System.out.println("--------------------------------");
+        }
+
+    }
+
+
 }
