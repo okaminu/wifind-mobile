@@ -75,7 +75,6 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
     @Override
     protected void onStart() {
         super.onStart();
-        new WifiSpotGetTask().execute();
     }
 
     @Override
@@ -184,9 +183,12 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
             @Override
             public void onReceive(Context c, Intent intent) {
                 List<ScanResult> scanResults = wifi.getScanResults();
-                ssids.clear();
-                isSecure.clear();
                 for (ScanResult result : scanResults) {
+                    if(ssids.contains(result.SSID)){
+                        int index = ssids.indexOf(result.SSID);
+                        ssids.remove(index);
+                        isSecure.remove(index);
+                    }
                     ssids.add(result.SSID);
                     isSecure.add(result.capabilities.contains("WPA"));
                 }
@@ -265,14 +267,10 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
         @Override
         protected Boolean doInBackground(Integer... integers) {
             WifiSpot wifiSpot = new WifiSpot(ssid, System.currentTimeMillis(), location, isProtected);
-            Message message;
             try {
                 return new ApiClientFactory().build(WiFindClient.class).save(wifiSpot);
             } catch (Exception ex) {
-                ex.getMessage();
-                message = showGUIMessageHandler.obtainMessage
-                        (0, "Failed to submit spot info: service unreachable");
-                message.sendToTarget();
+
             }
             return false;
         }
@@ -347,6 +345,7 @@ public class MapsActivity extends FragmentActivity implements GoogleApiClient.Co
                     Toast.LENGTH_LONG).show();
         } else {
             zoomToLocation(location);
+            new WifiSpotGetTask().execute();
         }
     }
 
