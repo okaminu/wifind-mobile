@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">WiFind</string>
-    <string name="title_activity_maps">Map</string>
+    <string name="title_activity_maps">WiFind</string>
 </resources>
